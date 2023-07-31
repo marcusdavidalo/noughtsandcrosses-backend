@@ -62,17 +62,12 @@ app.post("/api/move", (req, res) => {
       ? PLAYER_X
       : PLAYER_O;
 
-  if (
-    !checkWin(board, PLAYER_X) &&
-    !checkWin(board, PLAYER_O) &&
-    !checkDraw(board)
-  ) {
-    board = makeMove(board, currentPlayer, row, col);
-    io.emit("boardUpdate", {
-      board,
-      currentPlayer: getOpponentName(currentPlayer),
-    });
-  }
+  // Always emit a board update to all connected clients
+  board = makeMove(board, currentPlayer, row, col);
+  io.emit("boardUpdate", {
+    board,
+    currentPlayer: getOpponentName(currentPlayer),
+  });
 
   const winner = checkWin(board, currentPlayer);
   if (winner) {
