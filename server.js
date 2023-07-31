@@ -5,14 +5,9 @@ const socketIO = require("socket.io");
 const app = express();
 const server = http.createServer(app);
 const io = socketIO(server);
-// const cors = require("cors");
+const cors = require("cors");
 
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "https://nacttcnc.vercel.app/");
-  next();
-});
-
-// app.use(cors());
+app.use(cors());
 
 let waitingPlayer = null;
 
