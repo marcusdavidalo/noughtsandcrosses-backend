@@ -19,7 +19,7 @@ app.use(cors());
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: "*", // Allow requests from any origin. Replace with your frontend URL in production.
+    origin: "*",
   },
 });
 
@@ -28,13 +28,20 @@ app.use(express.json());
 let board = createBoard();
 
 io.on("connection", (socket) => {
-  console.log("A user connected.");
+  console.log("A user connected:", socket.id);
   io.emit("boardUpdate", { board, currentPlayer: PLAYER_X });
-  socket.on("boardUpdate", ({ board: updatedBoard, currentPlayer, winner }) => {
-    io.emit("boardUpdate", { board: updatedBoard, currentPlayer, winner });
-  });
+
   socket.on("disconnect", () => {
     console.log("A user disconnected.");
+  });
+
+  socket.on("boardUpdate", ({ board: updatedBoard, currentPlayer, winner }) => {
+    board = updatedBoard;
+    socket.broadcast.emit("boardUpdate", {
+      board: updatedBoard,
+      currentPlayer,
+      winner,
+    });
   });
 });
 
@@ -64,6 +71,7 @@ app.post("/api/move", (req, res) => {
 
   // Always emit a board update to all connected clients
   board = makeMove(board, currentPlayer, row, col);
+  console.log("Emitting board update:", board);
   io.emit("boardUpdate", {
     board,
     currentPlayer: getOpponentName(currentPlayer),
@@ -95,7 +103,7 @@ function getOpponentName(playerName) {
   return playerName === PLAYER_X ? PLAYER_O : PLAYER_X;
 }
 
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
+const PORT = process.env.PORT || 8000;
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`Server is running on port ${PORT}`);
 });
