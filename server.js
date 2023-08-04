@@ -25,29 +25,33 @@ const io = socketIo(server, {
 
 app.use(express.json());
 
-let board = createBoard();
+let gameState = {
+  board: createBoard(),
+  currentPlayer: PLAYER_X,
+  winner: null,
+};
 
 io.on("connection", (socket) => {
   console.log("A user connected:", socket.id);
-  io.emit("boardUpdate", { board, currentPlayer: PLAYER_X });
+  io.emit("boardUpdate", gameState);
 
   socket.on("disconnect", () => {
     console.log("A user disconnected.");
   });
 
   socket.on("boardUpdate", ({ board: updatedBoard, currentPlayer, winner }) => {
-    board = updatedBoard;
-    socket.broadcast.emit("boardUpdate", {
-      board: updatedBoard,
-      currentPlayer,
-      winner,
-    });
+    gameState = { board: updatedBoard, currentPlayer, winner };
+    io.emit("boardUpdate", gameState);
   });
 });
 
+setInterval(() => {
+  io.emit("boardUpdate", gameState);
+}, 100);
+
 app.post("/api/reset", (req, res) => {
-  board = createBoard();
-  io.emit("boardUpdate", { board, currentPlayer: PLAYER_X });
+  gameState = { board: createBoard(), currentPlayer: PLAYER_X, winner: null };
+  io.emit("boardUpdate", gameState);
   res.json({ message: "Game reset." });
 });
 
@@ -57,53 +61,56 @@ app.post("/api/move", (req, res) => {
   if (
     row === undefined ||
     col === undefined ||
-    board[row] === undefined ||
-    board[row][col] !== EMPTY_CELL
+    gameState.board[row] === undefined ||
+    gameState.board[row][col] !== EMPTY_CELL
   ) {
     return res.status(400).json({ error: "Invalid move." });
   }
 
   const currentPlayer =
-    board.flat().filter((cell) => cell === PLAYER_X).length ===
-    board.flat().filter((cell) => cell === PLAYER_O).length
+    gameState.board.flat().filter((cell) => cell === PLAYER_X).length ===
+    gameState.board.flat().filter((cell) => cell === PLAYER_O).length
       ? PLAYER_X
       : PLAYER_O;
 
   // Always emit a board update to all connected clients
-  board = makeMove(board, currentPlayer, row, col);
-  console.log("Emitting board update:", board);
+  gameState.board = makeMove(gameState.board, currentPlayer, row, col);
+  console.log("Emitting board update:", gameState.board);
   io.emit("boardUpdate", {
-    board,
+    ...gameState,
     currentPlayer: getOpponentName(currentPlayer),
   });
 
-  const winner = checkWin(board, currentPlayer);
+  const winner = checkWin(gameState.board, currentPlayer);
   if (winner) {
     return res.json({
-      board,
+      ...gameState,
       currentPlayer,
       winner,
       message: `Game over. Player ${winner} wins!`,
     });
   }
 
-  if (checkDraw(board)) {
+  if (checkDraw(gameState.board)) {
     return res.json({
-      board,
+      ...gameState,
       currentPlayer,
       winner: "draw",
       message: "Game over. It's a draw!",
     });
   }
 
-  res.json({ board, currentPlayer });
+  res.json(gameState);
+  app.get("/api/state", (req, res) => {
+    res.json(gameState);
+  });
 });
 
 function getOpponentName(playerName) {
   return playerName === PLAYER_X ? PLAYER_O : PLAYER_X;
 }
 
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.PORT || 5000;
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Server is running on port ${PORT}`);
 });
